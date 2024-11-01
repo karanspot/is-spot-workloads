@@ -29,7 +29,7 @@ The script output consists of:
 
 Sample Output:
 ```
-$ **python3 spotableworkloads.py**
+$ python3 spotableworkloads.py
 
 #####################################################################
 Scanning cluster: arn:aws:eks:us-west-2:xx6285426xx:cluster/test-cluster
