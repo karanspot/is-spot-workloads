@@ -20,28 +20,16 @@ Prerequisites
 
 **Script Output:**
 The script output consists of:
-1. The cluster name.
-2. Namespaces excluded.
+1. The cluster name being scanned.
+2. Namespaces excluded by the script.
 3. All the Deployments Name & Namespaces that may be suitable for spot instances.
 4. All the Deployments Name & Namespaces that may not be suitable for spot instances.
-5. The reason why the deployments were marked as unsuitable for spot instances.
-
-How many deployments.
-
-The deployment’s namespace and name.
-
-The total vCPU of the pods that may be suitable for spot instances (taken from the configure requested cpu).
-
-Deployments that may be unsuitable for spot instances.
-
-The reason why we marked it as unsuitable for spot instances.
-For example “The deployment does not have a more than one replica”.
-
-The deployment’s namespace and name for this reason.
+5. Total vCPU & Total Memory of pods that are suitable to run on Spot.
+6. The reason why the deployments were marked as unsuitable for spot instances.
 
 Sample Output:
 ```
-python3 spotableworkloads.py
+$ **python3 spotableworkloads.py**
 
 #####################################################################
 Scanning cluster: arn:aws:eks:us-west-2:xx6285426xx:cluster/test-cluster
@@ -63,6 +51,10 @@ Namespace Name                 | Deployment Name
 default                        | nginx-deploy
 default                        | slow-starting-deployment
 olm                            | packageserver
+
+Total vCPU of workloads that may be suitable for spot instances: 12.020 vCPU
+
+Total Memory of workloads that may be suitable for spot instances: 6200 MiB
 
 #########################################################################
 #########################################################################
