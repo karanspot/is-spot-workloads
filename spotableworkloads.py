@@ -136,7 +136,7 @@ def main():
 
     excludeNamespaces = []
     excludeNamespaces = input("Enter namespaces to exclude: ").split()
-    print(f"\nNamespaces Excluded 'kube-system',: {excludeNamespaces}\n")
+    print(f"\nNamespaces Excluded: 'kube-system', {excludeNamespaces}\n")
 
     print(f"\nStarting to scan Deployments across all namespaces except 'kube-system' and '{excludeNamespaces}' ...\n")
 
