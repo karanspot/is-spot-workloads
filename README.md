@@ -61,7 +61,7 @@ Total Memory of workloads that may be suitable for spot instances: 6200 MiB
 
 Total number of deployments that may be unsuitable for spot instances: 9
 
-* The deployment's pods take longer than 2 minutes to become ready:
+* The deployment's pods take longer than 10 minutes to become ready:
 default                        | applog
 default                        | backend-app
 default                        | frontend-app
