@@ -33,8 +33,8 @@ def gets_ready_quickly(deployment, v1):
                 ready_time = condition.last_transition_time
         if scheduled_time is None or ready_time is None:
             return False, "Pod schedule time or ready time is missing"
-        if (ready_time - scheduled_time) > timedelta(minutes=2):
-            return False, "The deployment's pods take longer than 2 minutes to become ready"
+        if (ready_time - scheduled_time) > timedelta(minutes=10):
+            return False, "The deployment's pods take longer than 10 minutes to become ready"
     return True, ""
 
 def is_safe_to_evict(deployment):
