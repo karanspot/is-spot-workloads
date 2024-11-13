@@ -3,10 +3,10 @@ Python script that scans your current Kubernetes cluster and indicates which wor
 
 **What do we check?**
 1. All deployments that are NOT in the kube-system namespace. You can also add namespaces you want to avoid the script checking on.
-2. For each deployment we check, we consider it suitable to run on spot if:
+2. For each deployment we check, we consider it suitable to run on Spot if:
    a. The restart_policy is Always.
    b. The deployment has more than one replica.
-   c. If pods are ready in less than 2 minutes.
+   c. If pods take more than 10 minutes to get into Ready state.
    d. If the deployment doesn't have any cluster-autoscaler.kubernetes.io/safe-to-evict label set to false.
    e. The deployment's pods don’t request ephemeral storage.
    f. If the deployment has termination_grace_period_seconds less than 600 seconds
