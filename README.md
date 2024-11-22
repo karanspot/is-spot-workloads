@@ -2,15 +2,16 @@
 Python script that scans your current Kubernetes cluster and indicates which workloads may be suitable to run on spot nodes.
 
 **What do we check?**
-1. All deployments that are NOT in the kube-system namespace. You can also add namespaces you want to avoid the script checking on.
+1. All deployments that are NOT in the kube-system namespace. You can also add any additional namespaces you want to exclude.
 2. For each deployment we check, we consider it suitable to run on Spot if:
-   a. The restart_policy is Always.
-   b. The deployment has more than one replica.
-   c. If pods take more than 10 minutes to get into Ready state.
-   d. If the deployment doesn't have any cluster-autoscaler.kubernetes.io/safe-to-evict label set to false.
-   e. The deployment's pods don’t request ephemeral storage.
-   f. If the deployment has termination_grace_period_seconds less than 600 seconds
-3. Currently, we scan only deployments - and NOT: jobs, stateful sets, etc.
+   a. The deployment has more than one replica.
+   b. If the deployment doesn't have any karpenter.sh/do-not-evict annotation set to true
+   b. If the deployment doesn't have any cluster-autoscaler.kubernetes.io/safe-to-evict label set to false.
+   c. If the deployment doesn't have any spotinst.io/restrict-scale-down label set to true.
+   d. The deployment's pods don’t request ephemeral storage.
+   e. If the deployment has termination_grace_period_seconds less than 600 seconds
+4. PDBs that are too restrictive and may not be suitable to run on Spot.   
+5. Currently, we scan only deployments - and NOT: jobs, stateful sets, etc.
 
 Prerequisites 
 1. Python 3.x should be installed.
@@ -26,6 +27,7 @@ The script output consists of:
 4. All the Deployments Name & Namespaces that may not be suitable for spot instances.
 5. Total vCPU & Total Memory of pods that are suitable to run on Spot.
 6. The reason why the deployments were marked as unsuitable for spot instances.
+7. All the PDBs Name, Namespace, Spec & Current Status that may not be suitable for spot instances.
 
 Sample Output:
 ```
@@ -39,7 +41,7 @@ Enter namespaces to exclude: spot-system
 Namespaces Excluded: 'kube-system', ['spot-system']
 
 
-Starting to scan Deployments across all namespaces except 'kube-system' and '['spot-system']' ...
+Starting to scan Deployments and PDBs across all namespaces except 'kube-system' and '['spot-system']' ...
 
 #########################################################################
 Results:
@@ -61,10 +63,16 @@ Total Memory of workloads that may be suitable for spot instances: 6200 MiB
 
 Total number of deployments that may be unsuitable for spot instances: 9
 
-* The deployment's pods take longer than 10 minutes to become ready:
+* The deployment has the annotation karpenter.sh/do-not-evict set to "true":
 default                        | applog
+
+* The deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false":
 default                        | backend-app
+
+* The deployment has the label spotinst.io/restrict-scale-down set to "true":
 default                        | frontend-app
+
+* The deployment has terminationGracePeriod greater than 10 minutes:
 default                        | web-api
 testing                        | perfapp
 
@@ -73,4 +81,27 @@ default                        | kube-prometheus-stack-grafana
 default                        | kube-prometheus-stack-kube-state-metrics
 default                        | kube-prometheus-stack-operator
 default                        | php-apache-app
+
+#########################################################################
+#########################################################################
+
+The PDB fk-pdb in namespace testing is too restrictive
+PDB Spec:
+ {'max_unavailable': None,
+ 'min_available': 2,
+ 'selector': {'match_expressions': None, 'match_labels': {'app': 'frontend'}},
+ 'unhealthy_pod_eviction_policy': None}
+PDB Current Status:
+ {'conditions': [{'last_transition_time': datetime.datetime(2024, 11, 22, 8, 44, 24, tzinfo=tzutc()),
+                 'message': '',
+                 'observed_generation': 1,
+                 'reason': 'InsufficientPods',
+                 'status': 'False',
+                 'type': 'DisruptionAllowed'}],
+ 'current_healthy': 0,
+ 'desired_healthy': 2,
+ 'disrupted_pods': None,
+ 'disruptions_allowed': 0,
+ 'expected_pods': 2,
+ 'observed_generation': 1}
 ```
