@@ -1,12 +1,6 @@
 from datetime import timedelta
 from kubernetes import client, config, utils
 
-def is_stateless(deployment):
-    # Check if the deployment is stateless.
-    if deployment.spec.template.spec.restart_policy != "Always":
-        return False, "The deployment is not stateless"
-    return True, ""
-
 def has_replica_set(deployment):
     # Check if the deployment has more than one replica.
     if deployment.spec.replicas is None or deployment.spec.replicas < 2:
@@ -17,7 +11,6 @@ def gets_ready_quickly(deployment, v1):
     # Check the time it takes for pods to become ready.
     # Construct label selector from deployment.spec.selector.matchLabels
     label_selector = ",".join([f"{k}={v}" for k, v in deployment.spec.selector.match_labels.items()])
-    #print("Label selector:")
     #print(label_selector)
     pods = v1.list_namespaced_pod(deployment.metadata.namespace, label_selector=label_selector).items
     #print(pods)
@@ -37,10 +30,22 @@ def gets_ready_quickly(deployment, v1):
             return False, "The deployment's pods take longer than 10 minutes to become ready"
     return True, ""
 
+def has_do_not_evict(deployment):
+    # Check if the deployment has the annotation karpenter.sh/do-not-evict set to "true"
+    if deployment.metadata.labels is not None and (deployment.metadata.annotations.get('karpenter.sh/do-not-evict') == "true"):
+        return False, 'The deployment has the annotation karpenter.sh/do-not-evict set to "true"'
+    return True, ""
+
 def is_safe_to_evict(deployment):
     # Check if the deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false"
-    if deployment.metadata.labels is not None and deployment.metadata.labels.get('cluster-autoscaler.kubernetes.io/safe-to-evict') == "false":
+    if deployment.metadata.labels is not None and (deployment.metadata.labels.get('cluster-autoscaler.kubernetes.io/safe-to-evict') == "false"):
         return False, 'The deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false"'
+    return True, ""
+
+def has_restrict_scale_down(deployment):
+    # Check if the deployment has the label spotinst.io/restrict-scale-down set to "true"
+    if deployment.metadata.labels is not None and (deployment.metadata.labels.get('spotinst.io/restrict-scale-down') == "true"):
+        return False, 'The deployment has the label spotinst.io/restrict-scale-down set to "true"'
     return True, ""
 
 def has_terminationGracePeriodSeconds(deployment):
@@ -60,7 +65,7 @@ def uses_no_ephemeral_storage(deployment):
     return True, ""
 
 def is_suitable_for_spot_instances(deployment, v1):
-    checks = [(is_stateless, []), (has_replica_set, []), (is_safe_to_evict, []), (has_terminationGracePeriodSeconds, []), (uses_no_ephemeral_storage, []), (gets_ready_quickly, [v1])]
+    checks = [(has_replica_set, []), (has_do_not_evict, []), (is_safe_to_evict, []), (has_restrict_scale_down, []), (has_terminationGracePeriodSeconds, []), (uses_no_ephemeral_storage, [])]
 
     for check, args in checks:
         result, message = check(deployment, *args)
@@ -121,7 +126,7 @@ def main():
     #print(deployments)
 
     p1 = client.PolicyV1Api()
-    #PodDisruptionBudgetStatus
+    #List all PodDisruptionBudgets
     pdbs = p1.list_pod_disruption_budget_for_all_namespaces().items
     #print(pdbs)
 
@@ -138,7 +143,7 @@ def main():
     excludeNamespaces = input("Enter namespaces to exclude: ").split()
     print(f"\nNamespaces Excluded: 'kube-system', {excludeNamespaces}\n")
 
-    print(f"\nStarting to scan Deployments across all namespaces except 'kube-system' and '{excludeNamespaces}' ...\n")
+    print(f"\nStarting to scan Deployments and PDBs across all namespaces except 'kube-system' and '{excludeNamespaces}' ...\n")
 
     for deployment in deployments:
         if (deployment.metadata.namespace == "kube-system"):
@@ -159,26 +164,47 @@ def main():
     print("#########################################################################")
     print("Results:")
     print("#########################################################################")
-    print(f"\nTotal number of deployments that may be suitable for spot instances: {len(suitable_deployments)}")
+    print(f"\nTotal number of deployments that may be Suitable for spot instances: {len(suitable_deployments)}")
     print(f"{'Namespace Name':30} | Deployment Name\n")
     for namespace, name in suitable_deployments:
         print(f"{namespace:30} | {name}")
 
     if total_cpu_requests > 0:
-        print(f"\nTotal vCPU of workloads that may be suitable for spot instances: {total_cpu_requests} vCPU\n")
+        print(f"\nTotal vCPU of workloads that may be Suitable for spot instances: {total_cpu_requests} vCPU\n")
 
     if total_mem_requests > 0:
         total_mem_requests_mib=total_mem_requests/(1024*1024)
-        print(f"\nTotal Memory of workloads that may be suitable for spot instances: {total_mem_requests_mib} MiB\n")
+        print(f"\nTotal Memory of workloads that may be Suitable for Spot instances: {total_mem_requests_mib} MiB\n")
 
     print("#########################################################################")
     print("#########################################################################")
 
-    print(f"\nTotal number of deployments that may be unsuitable for spot instances: {sum(len(v) for v in unsuitable_deployments.values())}")
+    print(f"\nTotal number of deployments that may be Unsuitable for Spot instances: {sum(len(v) for v in unsuitable_deployments.values())}")
     for reason, deployments in unsuitable_deployments.items():
         print(f"\n* {reason}:")
         for namespace, name in deployments:
-            print(f"{namespace:30} | {name}")
+            print(f"{namespace:30} | {name}\n")
+
+    print("#########################################################################")
+    print("#########################################################################")
+
+    for pdb in pdbs:
+        pdb_name = pdb.metadata.name
+        pdb_namespace = pdb.metadata.namespace
+        pdb_spec = pdb.spec
+        pdb_status = pdb.status
+        pdb_disruptions_allowed = pdb.status.disruptions_allowed
+
+        if (pdb_namespace == "kube-system"):
+            continue
+
+        if (pdb_namespace in excludeNamespaces):
+            continue
+
+        if (pdb_disruptions_allowed <= 0):
+            print(f"\nThe PDB {pdb_name} in namespace {pdb_namespace} is too restrictive")
+            print(f"PDB Spec:\n {pdb_spec}")
+            print(f"PDB Current Status:\n {pdb_status}\n")
 
 if __name__ == "__main__":
     main()
