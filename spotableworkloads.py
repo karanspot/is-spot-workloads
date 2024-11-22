@@ -202,7 +202,7 @@ def main():
             continue
 
         if (pdb_disruptions_allowed <= 0):
-            print(f"\nThe PDB {pdb_name} in namespace {pdb_namespace} is too restrictive")
+            print(f"\nThe PDB {pdb_name} in namespace {pdb_namespace} has no disruptions allowed")
             print(f"PDB Spec:\n {pdb_spec}")
             print(f"PDB Current Status:\n {pdb_status}\n")
 
