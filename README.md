@@ -10,7 +10,7 @@ Python script that scans your current Kubernetes cluster and indicates which wor
    c. If the deployment doesn't have any spotinst.io/restrict-scale-down label set to true.
    d. The deployment's pods don’t request ephemeral storage.
    e. If the deployment has termination_grace_period_seconds less than 600 seconds
-4. PDBs that are too restrictive and may not be suitable to run on Spot.   
+4. PDBs that are too restrictive with no disruptions allowed, hence may not be suitable to run on Spot.   
 5. Currently, we scan only deployments - and NOT: jobs, stateful sets, etc.
 
 Prerequisites 
@@ -85,7 +85,7 @@ default                        | php-apache-app
 #########################################################################
 #########################################################################
 
-The PDB fk-pdb in namespace testing is too restrictive
+The PDB fk-pdb in namespace testing has no disruptions allowed
 PDB Spec:
  {'max_unavailable': None,
  'min_available': 2,
