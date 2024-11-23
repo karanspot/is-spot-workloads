@@ -5,8 +5,8 @@ Python script that scans your current Kubernetes cluster and indicates which wor
 1. All deployments that are NOT in the kube-system namespace. You can also add any additional namespaces you want to exclude.
 2. For each deployment we check, we consider it suitable to run on Spot if:
    a. The deployment has more than one replica.
-   b. If the deployment doesn't have any karpenter.sh/do-not-evict annotation set to true
-   b. If the deployment doesn't have any cluster-autoscaler.kubernetes.io/safe-to-evict label set to false.
+   b. If the deployment doesn't have any karpenter.sh/do-not-disrupt annotation set to true
+   b. If the deployment doesn't have any cluster-autoscaler.kubernetes.io/safe-to-evict annotation set to false.
    c. If the deployment doesn't have any spotinst.io/restrict-scale-down label set to true.
    d. The deployment's pods don’t request ephemeral storage.
    e. If the deployment has termination_grace_period_seconds less than 600 seconds
@@ -23,8 +23,8 @@ Prerequisites
 The script output consists of:
 1. The cluster name being scanned.
 2. Namespaces excluded by the script.
-3. All the Deployments Name & Namespaces that may be suitable for spot instances.
-4. All the Deployments Name & Namespaces that may not be suitable for spot instances.
+3. All the Deployments Name & Namespaces that may be suitable for Spot instances.
+4. All the Deployments Name & Namespaces that may be unsuitable for Spot instances.
 5. Total vCPU & Total Memory of pods that are suitable to run on Spot.
 6. The reason why the deployments were marked as unsuitable for spot instances.
 7. All the PDBs Name, Namespace, Spec & Current Status that may not be suitable for spot instances.
