@@ -1,5 +1,6 @@
 from datetime import timedelta
 from kubernetes import client, config, utils
+import csv
 
 def has_replica_set(deployment):
     # Check if the deployment has more than one replica.
@@ -30,21 +31,21 @@ def gets_ready_quickly(deployment, v1):
             return False, "The deployment's pods take longer than 10 minutes to become ready"
     return True, ""
 
-def has_do_not_evict(deployment):
-    # Check if the deployment has the annotation karpenter.sh/do-not-evict set to "true"
-    if deployment.metadata.labels is not None and (deployment.metadata.annotations.get('karpenter.sh/do-not-evict') == "true"):
-        return False, 'The deployment has the annotation karpenter.sh/do-not-evict set to "true"'
+def has_do_not_disrupt(deployment):
+    # Check if the deployment has the annotation karpenter.sh/do-not-disrupt set to "true"
+    if deployment.spec.template.metadata.annotations is not None and deployment.spec.template.metadata.annotations.get('karpenter.sh/do-not-disrupt') == "true":
+        return False, 'The deployment has the annotation karpenter.sh/do-not-disrupt set to "true"'
     return True, ""
 
 def is_safe_to_evict(deployment):
-    # Check if the deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false"
-    if deployment.metadata.labels is not None and (deployment.metadata.labels.get('cluster-autoscaler.kubernetes.io/safe-to-evict') == "false"):
+    # Check if the deployment has the annotation cluster-autoscaler.kubernetes.io/safe-to-evict set to "false"
+    if deployment.spec.template.metadata.annotations is not None and deployment.spec.template.metadata.annotations.get('cluster-autoscaler.kubernetes.io/safe-to-evict') == "false":
         return False, 'The deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false"'
     return True, ""
 
 def has_restrict_scale_down(deployment):
     # Check if the deployment has the label spotinst.io/restrict-scale-down set to "true"
-    if deployment.metadata.labels is not None and (deployment.metadata.labels.get('spotinst.io/restrict-scale-down') == "true"):
+    if deployment.spec.template.metadata.labels is not None and deployment.spec.template.metadata.labels.get('spotinst.io/restrict-scale-down') == "true":
         return False, 'The deployment has the label spotinst.io/restrict-scale-down set to "true"'
     return True, ""
 
@@ -65,7 +66,7 @@ def uses_no_ephemeral_storage(deployment):
     return True, ""
 
 def is_suitable_for_spot_instances(deployment, v1):
-    checks = [(has_replica_set, []), (has_do_not_evict, []), (is_safe_to_evict, []), (has_restrict_scale_down, []), (has_terminationGracePeriodSeconds, []), (uses_no_ephemeral_storage, [])]
+    checks = [(has_replica_set, []), (has_do_not_disrupt, []), (is_safe_to_evict, []), (has_restrict_scale_down, []), (has_terminationGracePeriodSeconds, []), (uses_no_ephemeral_storage, [])]
 
     for check, args in checks:
         result, message = check(deployment, *args)
@@ -145,6 +146,8 @@ def main():
 
     print(f"\nStarting to scan Deployments and PDBs across all namespaces except 'kube-system' and '{excludeNamespaces}' ...\n")
 
+    generatecsv= input("Generate csv file for SpotableWorkloads? (y/n):")
+
     for deployment in deployments:
         if (deployment.metadata.namespace == "kube-system"):
             continue
@@ -160,11 +163,29 @@ def main():
                 unsuitable_deployments[message] = []
             unsuitable_deployments[message].append((deployment.metadata.namespace, deployment.metadata.name))
 
+    if (generatecsv.casefold() == "y"):
+        print("\nGenerated suitableworkloads.csv to run on Spot\n")
+        with open('suitableworkloads.csv', 'w', newline='') as csvfile:
+            header = [['Namespace','Deployment']]
+            writer = csv.writer(csvfile)
+            writer.writerows(header)
+            writer.writerows(suitable_deployments)
+        print("\nGenerated unsuitableworkloads.csv to run on Spot\n")
+        with open('unsuitableworkloads.csv', 'w', newline='') as csvfile:
+            header = [['Namespace','Deployment']]
+            writer = csv.writer(csvfile)
+            writer.writerows(header)
+            for reasons in unsuitable_deployments:
+                reason = [reasons,'count:'+str(len(unsuitable_deployments[reasons]))]
+                writer.writerow(reason)
+                writer.writerows(unsuitable_deployments[reasons])
+
+
     # Print the results
     print("#########################################################################")
     print("Results:")
     print("#########################################################################")
-    print(f"\nTotal number of deployments that may be Suitable for spot instances: {len(suitable_deployments)}")
+    print(f"\nTotal number of deployments that may be Suitable for Spot instances: {len(suitable_deployments)}")
     print(f"{'Namespace Name':30} | Deployment Name\n")
     for namespace, name in suitable_deployments:
         print(f"{namespace:30} | {name}")
@@ -175,6 +196,8 @@ def main():
     if total_mem_requests > 0:
         total_mem_requests_mib=total_mem_requests/(1024*1024)
         print(f"\nTotal Memory of workloads that may be Suitable for Spot instances: {total_mem_requests_mib} MiB\n")
+
+
 
     print("#########################################################################")
     print("#########################################################################")
@@ -188,23 +211,33 @@ def main():
     print("#########################################################################")
     print("#########################################################################")
 
-    for pdb in pdbs:
-        pdb_name = pdb.metadata.name
-        pdb_namespace = pdb.metadata.namespace
-        pdb_spec = pdb.spec
-        pdb_status = pdb.status
-        pdb_disruptions_allowed = pdb.status.disruptions_allowed
+    pdbdetails= input("Do you want investigate PDB disruptions? (y/n):")
+    if (pdbdetails.casefold() == "y"):
+        for pdb in pdbs:
+            pdb_name = pdb.metadata.name
+            pdb_namespace = pdb.metadata.namespace
+            pdb_spec = pdb.spec
+            pdb_labels= pdb.spec.selector.match_labels.items()
+            pdb_status = pdb.status
+            pdb_disruptions_allowed = pdb.status.disruptions_allowed
 
-        if (pdb_namespace == "kube-system"):
-            continue
+            if (pdb_namespace == "kube-system"):
+                continue
 
-        if (pdb_namespace in excludeNamespaces):
-            continue
+            if (pdb_namespace in excludeNamespaces):
+                continue
 
-        if (pdb_disruptions_allowed <= 0):
-            print(f"\nThe PDB {pdb_name} in namespace {pdb_namespace} has no disruptions allowed")
-            print(f"PDB Spec:\n {pdb_spec}")
-            print(f"PDB Current Status:\n {pdb_status}\n")
+            if (pdb_disruptions_allowed <= 0):
+                label_selector = ",".join([f"{k}={v}" for k, v in pdb_labels])
+                print(f"\nThe PDB {pdb_name} in namespace {pdb_namespace} with labels {label_selector} has no disruptions allowed:\n")
+                #print(f"\nPDB Spec:\n {pdb_spec}\n")
+                #print(f"\nPDB Current Status:\n {pdb_status}\n")
+                #print(f"\nPDB Labels:\n {label_selector}\n")
+                pdb_pods = v1.list_namespaced_pod(pdb_namespace, label_selector=label_selector).items
+                print(f"Pods associated with the above PDB config:")
+                for pdb_pod in pdb_pods:
+                    print(pdb_pod.metadata.name)
+
 
 if __name__ == "__main__":
     main()
