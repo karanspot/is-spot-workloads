@@ -38,10 +38,10 @@ Scanning cluster: arn:aws:eks:us-west-2:xx6285426xx:cluster/test-cluster
 #####################################################################
 Enter namespaces to exclude: spot-system
 
-Namespaces Excluded: 'kube-system', ['spot-system']
+Namespaces Excluded: 'kube-system', ['prod-system']
 
 
-Starting to scan Deployments and PDBs across all namespaces except 'kube-system' and '['spot-system']' ...
+Starting to scan Deployments and PDBs across all namespaces except 'kube-system' and '['prod-system']' ...
 
 #########################################################################
 Results:
