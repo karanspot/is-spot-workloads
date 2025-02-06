@@ -38,10 +38,10 @@ Scanning cluster: arn:aws:eks:us-west-2:xx6285426xx:cluster/test-cluster
 #####################################################################
 Enter namespaces to exclude: spot-system
 
-Namespaces Excluded: 'kube-system', ['spot-system']
+Namespaces Excluded: 'kube-system', ['prod-system']
 
 
-Starting to scan Deployments and PDBs across all namespaces except 'kube-system' and '['spot-system']' ...
+Starting to scan Deployments and PDBs across all namespaces except 'kube-system' and '['prod-system']' ...
 
 #########################################################################
 Results:
@@ -68,9 +68,6 @@ default                        | applog
 
 * The deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false":
 default                        | backend-app
-
-* The deployment has the label spotinst.io/restrict-scale-down set to "true":
-default                        | frontend-app
 
 * The deployment has terminationGracePeriod greater than 10 minutes:
 default                        | web-api
