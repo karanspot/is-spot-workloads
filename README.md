@@ -69,9 +69,6 @@ default                        | applog
 * The deployment has the label cluster-autoscaler.kubernetes.io/safe-to-evict set to "false":
 default                        | backend-app
 
-* The deployment has the label spotinst.io/restrict-scale-down set to "true":
-default                        | frontend-app
-
 * The deployment has terminationGracePeriod greater than 10 minutes:
 default                        | web-api
 testing                        | perfapp
